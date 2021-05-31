@@ -20,6 +20,10 @@ uint8_t currentBrightness;
 uint8_t lastBrightness;
 
 
+// switch pattern after 10 seconds
+static uint32_t prevTime;
+uint32_t curTime = millis();
+
 // For fading in a new sketch
 long lastTime;
 
@@ -93,25 +97,29 @@ void setBrightness(uint8_t newBrightness) {
 
 
 // Called when the button is both pressed and released.
-ISR(PCINT0_vect){
+ISR(PCINT0_vect) {
   buttonState = !(PINB & (1 << PINB6)); // Reading state of the PB6 (remember that HIGH == released)
+  bool dis = false;
+  if(dis){
+    if (buttonState ) {
+      // On button down, record the time so we can convert this into a gesture later
+      buttonDownTime = millis();
+      buttonDebounced = false;
   
-  if(buttonState) {
-    // On button down, record the time so we can convert this into a gesture later
-    buttonDownTime = millis();
-    buttonDebounced = false;
-    
-    // And configure and start timer4 interrupt.
-    TCCR4B = 0x0F; // Slowest prescaler
-    TCCR4D = _BV(WGM41) | _BV(WGM40);  // Fast PWM mode
-    OCR4C = 0x10;        // some random percentage of the clock
-    TCNT4 = 0;  // Reset the counter
-    TIMSK4 = _BV(TOV4);  // turn on the interrupt
+      // And configure and start timer4 interrupt.
+      TCCR4B = 0x0F; // Slowest prescaler
+      TCCR4D = _BV(WGM41) | _BV(WGM40);  // Fast PWM mode
+      OCR4C = 0x10;        // some random percentage of the clock
+      TCNT4 = 0;  // Reset the counter
+      TIMSK4 = _BV(TOV4);  // turn on the interrupt
+  
+    }
+    else {
+      TIMSK4 = 0;  // turn off the interrupt
+    }
     
   }
-  else {
-    TIMSK4 = 0;  // turn off the interrupt
-  }
+
 }
 
 // This is called every xx ms while the button is being held down; it counts down then displays a
@@ -187,6 +195,13 @@ void loop()
     // Make sure w're fully on the new brightness
     LEDS.setBrightness(brightnesSteps[currentBrightness]);
     serialLoop(leds);
+  }
+  
+  
+  if ( curTime - prevTime >= 10*1000UL )
+  {
+     prevTime = curTime; 
+     setPattern(currentPattern + 1);
   }
   
   // Draw the current pattern
